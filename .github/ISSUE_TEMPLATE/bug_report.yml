@@ -1,0 +1,41 @@
+name: Bug report
+description: Report reproducible behavior that is incorrect or unsafe
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not attach real personal, criminal, or operational records. Use synthetic examples only."
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: "1. Sign in as...\n2. Open...\n3. Select..."
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Document intake, Search, Network explorer, Timeline or analytics, Identity review, API or database, Authentication or authorisation, Documentation, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Python version, Node version, and browser
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data safety
+      options:
+        - label: I confirm that this report contains no real sensitive or operational data.
+          required: true

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import {
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -20,6 +21,7 @@ import {
   useEffect,
   useId,
   useRef,
+  useState,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -111,16 +113,19 @@ export function Banner({ tone = "info", title, children }: { tone?: "info" | "wa
 
 const metricIcons = { users: Users, files: Files, share: Share2, alert: AlertTriangle };
 
-export function MetricCard({ label, value, trend, icon }: { label: string; value: string; trend: string; icon: keyof typeof metricIcons }) {
+export function MetricCard({ label, value, trend, icon, details = [] }: { label: string; value: string; trend: string; icon: keyof typeof metricIcons; details?: string[] }) {
   const Icon = metricIcons[icon];
+  const [expanded, setExpanded] = useState(false);
   return (
-    <Card className="metric-card">
+    <Card className={`metric-card ${expanded ? "metric-card--expanded" : ""}`} data-depth>
       <div className="metric-card__icon"><Icon size={20} aria-hidden="true" /></div>
-      <div>
+      <div className="metric-card__body">
         <p className="metric-card__label">{label}</p>
         <strong>{value}</strong>
         <p className="metric-card__trend">{trend}</p>
+        <div className="metric-card__details" aria-hidden={!expanded}>{details.map((detail) => <span key={detail}>{detail}</span>)}</div>
       </div>
+      <button className="metric-card__toggle" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} details for ${label}`}>{expanded ? "Less" : "Details"}</button>
     </Card>
   );
 }
@@ -205,16 +210,17 @@ export function ConfidenceMeter({ value, verified = false }: { value: number; ve
         <strong>{value}% confidence</strong>
       </div>
       <span>{verified ? "Independently verified" : low ? "Human review recommended" : "AI suggested, requires review"}</span>
+      <i className="confidence__bar" aria-hidden="true"><b style={{ "--confidence-value": `${value}%` } as CSSProperties} /></i>
     </div>
   );
 }
 
 export function EvidenceCard({ id, source, time, children }: { id: string; source: string; time: string; children: ReactNode }) {
   return (
-    <article className="evidence-card">
-      <div className="evidence-card__icon"><FileText size={18} aria-hidden="true" /></div>
-      <div><strong>{children}</strong><p><span className="mono">{id}</span> · {source} · {time}</p></div>
-    </article>
+    <details className="evidence-card">
+      <summary><span className="evidence-card__icon"><FileText size={18} aria-hidden="true" /></span><span><strong>{children}</strong><p><span className="mono">{id}</span> · {source} · {time}</p></span><span className="evidence-card__expand">Inspect</span></summary>
+      <div className="evidence-card__detail"><span><b>Source</b>{source}</span><span><b>Evidence record</b><span className="mono">{id}</span></span><span><b>Recorded</b>{time}</span><p>This source supports the displayed relationship. Compare it with the original record before confirming the link.</p></div>
+    </details>
   );
 }
 
@@ -235,8 +241,8 @@ export function PipelineStepper({ steps, current }: { steps: string[]; current: 
 }
 
 export function GraphLegend() {
-  const items = ["Person", "Phone", "Bank Account", "Vehicle", "Location", "Incident"];
-  return <div className="graph-legend" aria-label="Graph entity legend">{items.map((item) => <span key={item}><i className={`legend-dot legend-dot--${item.toLowerCase().replace(" ", "-")}`} />{item}</span>)}</div>;
+  const items = ["Person", "Phone", "Bank Account", "Vehicle", "Location", "Organization", "Incident"];
+  return <div className="graph-legend" aria-label="Graph entity and relationship legend"><div>{items.map((item) => <span key={item}><i className={`legend-dot legend-dot--${item.toLowerCase().replace(" ", "-")}`} />{item}</span>)}</div><div className="graph-legend__links"><span><i className="legend-line" />Evidence-backed</span><span><i className="legend-line legend-line--inferred" />AI suggested</span></div></div>;
 }
 
 export function EmptyState({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {

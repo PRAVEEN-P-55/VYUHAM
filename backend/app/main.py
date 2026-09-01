@@ -23,6 +23,7 @@ from app.routers import (
     identity,
     mo,
     patterns,
+    search,
     timeline,
 )
 from app.services import graph_store
@@ -58,7 +59,7 @@ app.add_middleware(
 
 API = "/api/v1"
 for module in (auth, cases, graph, entities, timeline, patterns, mo, identity, gaps,
-               documents, export, audit, analytics):
+               documents, export, audit, analytics, search):
     app.include_router(module.router, prefix=API)
 
 

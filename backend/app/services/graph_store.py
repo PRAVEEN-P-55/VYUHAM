@@ -205,6 +205,99 @@ def node_public(entity_id: str) -> dict:
     }
 
 
+def _searchable_values(value, prefix: str = "") -> list[tuple[str, str]]:
+    """Flatten entity properties into safe, human-readable search values."""
+    out: list[tuple[str, str]] = []
+    if value is None:
+        return out
+    if isinstance(value, dict):
+        for key, item in value.items():
+            out.extend(_searchable_values(item, f"{prefix}.{key}" if prefix else str(key)))
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            out.extend(_searchable_values(item, prefix))
+    elif isinstance(value, (str, int, float)):
+        text = str(value).strip()
+        if text:
+            out.append((prefix or "record", text))
+    return out
+
+
+def search_entities(
+    search_text: str,
+    authorised_case_ids: list[str] | None,
+    entity_type: str | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """Search entity IDs, labels and identity fields across authorised cases.
+
+    `authorised_case_ids=None` means all cases. Entities without a case-backed
+    relationship are intentionally excluded because they cannot be safely
+    scoped to an investigator and cannot produce a useful network.
+    """
+    ensure_loaded()
+    needle = search_text.casefold().strip()
+    if not needle:
+        return []
+    allowed = set(authorised_case_ids) if authorised_case_ids is not None else None
+    wanted_type = TYPE_NORMALISE.get(entity_type or "", entity_type or "").upper()
+    matches: list[tuple[float, dict]] = []
+
+    for entity_id, node in _state["nodes"].items():
+        node_type = node.get("entity_type", "UNKNOWN")
+        if wanted_type and node_type != wanted_type:
+            continue
+
+        candidates = [("entity_id", entity_id), ("label", str(node.get("label") or entity_id))]
+        candidates.extend(_searchable_values(node.get("props") or {}))
+        best: tuple[float, str, str] | None = None
+        for field, raw_value in candidates:
+            value = raw_value.casefold()
+            if needle not in value:
+                continue
+            score = 60.0
+            if value == needle:
+                score = 100.0 if field == "entity_id" else 96.0
+            elif value.startswith(needle):
+                score = 88.0 if field in {"entity_id", "label"} else 82.0
+            elif field in {"entity_id", "label"}:
+                score = 74.0
+            score -= min(12.0, max(0, len(value) - len(needle)) * 0.08)
+            if best is None or score > best[0]:
+                best = (score, field.split(".")[-1], raw_value)
+        if best is None:
+            continue
+
+        # Case membership is comparatively expensive to derive from the
+        # relationship index, so only calculate it after the text matches.
+        all_case_ids = list(_entity_case_ids(entity_id))
+        visible_case_ids = [case_id for case_id in all_case_ids if allowed is None or case_id in allowed]
+        if not visible_case_ids:
+            continue
+
+        case_counts = {
+            case_id: sum(
+                1 for rid in case_relationship_ids(case_id)
+                if (row := _state["rel_rows"].get(rid))
+                and entity_id in {row["source_entity_id"], row["target_entity_id"]}
+            )
+            for case_id in visible_case_ids
+        }
+        preferred_case_id = max(visible_case_ids, key=lambda case_id: (case_counts[case_id], case_id))
+        public = node_public(entity_id)
+        public["case_ids"] = visible_case_ids
+        matches.append((best[0], {
+            **public,
+            "matched_field": best[1].replace("_", " "),
+            "matched_value": best[2],
+            "preferred_case_id": preferred_case_id,
+            "relationship_count": sum(case_counts.values()),
+        }))
+
+    matches.sort(key=lambda item: (-item[0], -item[1]["relationship_count"], item[1]["label"]))
+    return [item for _, item in matches[:limit]]
+
+
 @lru_cache(maxsize=4096)
 def _entity_case_ids(entity_id: str) -> tuple[str, ...]:
     ensure_loaded()

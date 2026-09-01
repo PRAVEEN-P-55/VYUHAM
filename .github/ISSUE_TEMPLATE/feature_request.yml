@@ -1,0 +1,33 @@
+name: Feature request
+description: Propose an investigator workflow, analysis, or platform improvement
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Investigator workflow
+      description: Describe the user, starting information, task, and desired outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and explainability requirements
+      description: How should results cite evidence, confidence, and review status?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Include API, data, interface, or algorithm ideas if available.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety review
+      options:
+        - label: The proposal preserves human review and does not present AI output as a verdict.
+          required: true
+        - label: Any examples or attached data are synthetic or legally shareable.
+          required: true

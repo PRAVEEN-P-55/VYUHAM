@@ -5,6 +5,7 @@ import { useAppContext } from "../context/AppContext";
 import { useApiResource } from "../hooks/useApiResource";
 import { api } from "../services/api";
 import { asPercent, formatDate, titleCase } from "../utils/format";
+import { notify } from "../components/InteractionLayer";
 
 type Decision = "ACCEPT" | "DEFER" | "REJECT";
 
@@ -27,6 +28,8 @@ export function IdentityReviewPage() {
     try {
       await api.resolveIdentity(activeCaseId, candidate.candidate_id, decision);
       setRecorded({ candidateId: candidate.candidate_id, action: decision });
+      const recordedId = candidate.candidate_id;
+      notify(`Identity review saved: ${decision.toLowerCase()}`, { action: { label: "Undo", onClick: () => { void api.reverseIdentity(activeCaseId, recordedId).then(() => setRecorded(null)); } } });
       setDecision(null);
     } catch (reason) {
       setActionError(reason instanceof Error ? reason.message : "Could not record the decision");

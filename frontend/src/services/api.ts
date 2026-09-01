@@ -94,6 +94,12 @@ export type GraphEdge = {
 };
 
 export type GraphResponse = { nodes: GraphNode[]; edges: GraphEdge[] };
+export type EntitySearchResult = GraphNode & {
+  matched_field: string;
+  matched_value: string;
+  preferred_case_id: string;
+  relationship_count: number;
+};
 export type TimelineEvent = { timestamp: string; event_type: string; description: string; source_id: string; evidence_id: string | null };
 export type Pattern = {
   hypothesis_id: string;
@@ -348,6 +354,8 @@ export const api = {
   uploadDocument: (caseId: string, body: FormData) => request<{ job_id: string; document_id: string }>(`/cases/${encodeURIComponent(caseId)}/documents`, { method: "POST", body }),
   jobEvents: (jobId: string) => request<JobStatus>(`/jobs/${encodeURIComponent(jobId)}/events`),
   graphQuery: (caseId: string, payload: { root_entity_id?: string; hops?: number; relationship_types?: string[]; time_from?: string; time_to?: string }) => request<GraphResponse>(`/cases/${encodeURIComponent(caseId)}/graph/query`, { method: "POST", body: JSON.stringify(payload) }),
+  searchEntities: (query: string, entityType?: string, limit = 40) =>
+    request<ItemsResponse<EntitySearchResult>>(`/search/entities${params({ q: query, entity_type: entityType, limit })}`),
   entitySummary: (caseId: string, entityId: string) => request<EntitySummary>(`/cases/${encodeURIComponent(caseId)}/entities/${encodeURIComponent(entityId)}/summary`),
   relationship: (caseId: string, relationshipId: string) => request<GraphEdge>(`/cases/${encodeURIComponent(caseId)}/relationships/${encodeURIComponent(relationshipId)}`),
   documentMentions: (caseId: string, entityId: string) => request<DocumentMention[]>(`/cases/${encodeURIComponent(caseId)}/entities/${encodeURIComponent(entityId)}/document-mentions`),

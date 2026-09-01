@@ -5,6 +5,7 @@ import { useAppContext } from "../context/AppContext";
 import { useApiResource } from "../hooks/useApiResource";
 import { api, apiAssetUrl, type JobStatus } from "../services/api";
 import { languageName, titleCase } from "../utils/format";
+import { notify } from "../components/InteractionLayer";
 
 const pipelineSteps = ["Uploaded", "OCR", "Language Detection", "Translation", "Entity Extraction", "Identity Resolution", "Graph Update"];
 const stageIndex: Record<string, number> = { UPLOADED: 0, OCR: 1, LANGUAGE_DETECTION: 2, TRANSLATION: 3, ENTITY_EXTRACTION: 4, IDENTITY_RESOLUTION: 5, GRAPH_UPDATE: 6 };
@@ -31,6 +32,7 @@ export function DocumentIntakePage() {
         if (status.status === "completed" || status.status === "failed") {
           setJobId("");
           reload();
+          notify(status.status === "completed" ? "Evidence processed and added to the graph" : "Evidence processing failed", { tone: status.status === "completed" ? "success" : "info" });
         }
       } catch (reason) {
         if (current) setError(reason instanceof Error ? reason.message : "Could not check processing status");
@@ -54,6 +56,7 @@ export function DocumentIntakePage() {
       setJobId(created.job_id);
       setJob({ ...created, stage: "UPLOADED", status: "processing", detected_language: null, extracted_entity_count: null, error: null });
       setFile(null);
+      notify("Upload received — processing pipeline started", { tone: "info" });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Upload failed");
     } finally {
@@ -69,10 +72,10 @@ export function DocumentIntakePage() {
       {(error || listError) && <Banner tone="warning" title="Document service error">{error || listError}</Banner>}
       <Banner title="Original records remain authoritative">Review extracted entities against the source document before confirming relationships.</Banner>
       <div className="intake-grid">
-        <Card className="upload-card">
+        <Card className={`upload-card ${processing ? "upload-card--processing" : ""}`}>
           <SectionHeader title="Add evidence" description="PDF, JPG or PNG up to 25 MB" />
           <label className={`drop-zone ${dragging ? "drop-zone--active" : ""}`} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); setFile(event.dataTransfer.files[0] ?? null); }}>
-            <input type="file" accept=".pdf,image/jpeg,image/png" onChange={chooseFile} /><span className="drop-zone__icon"><UploadCloud /></span><strong>{file ? file.name : "Drop a case record here"}</strong><p>{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB ready for upload` : "or select a file from this device"}</p><span className="button button--secondary button--md">Browse files</span>
+            <input type="file" accept=".pdf,image/jpeg,image/png" onChange={chooseFile} /><span className="drop-zone__icon"><UploadCloud /></span><strong>{dragging ? "Release to process evidence" : file ? file.name : "Drop a case record here"}</strong><p>{dragging ? "The file will be attached to the active case" : file ? `${(file.size / 1024 / 1024).toFixed(2)} MB ready for upload` : "or select a file from this device"}</p><span className="button button--secondary button--md">Browse files</span>
           </label>
           <div className="upload-actions"><input ref={cameraRef} className="sr-only" type="file" accept="image/*" capture="environment" onChange={chooseFile} aria-label="Capture a document with camera" /><Button icon={<Camera />} onClick={() => cameraRef.current?.click()}>Use camera</Button><Button variant="primary" icon={<FileUp />} disabled={!file || uploading || processing} onClick={startUpload}>{uploading ? "Uploading…" : processing ? "Processing…" : "Upload evidence"}</Button></div>
           <p className="privacy-note">Files are attached only to the active case. Do not upload unrelated personal records.</p>
@@ -83,7 +86,7 @@ export function DocumentIntakePage() {
           {job?.status === "completed" && <div className="pipeline-result" role="status"><CheckCircle2 /><span><strong>Graph update completed</strong><small>{job.extracted_entity_count ?? 0} entities extracted · Language {languageName(job.detected_language)}</small></span></div>}
         </Card>
       </div>
-      <Card>
+      <Card className={job?.status === "completed" ? "document-results document-results--fresh" : "document-results"}>
         <SectionHeader title="Processed evidence" description="Records returned by the active case API" />
         <TableWrap label="Processed evidence records"><table><thead><tr><th>Document</th><th>Detected language</th><th>Entities</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>{(data?.items ?? []).map((doc) => <tr key={doc.document_id}><td><div className="table-primary"><FileUp size={17} /><span><strong>{doc.document_id}</strong><small className="mono">{doc.view_url}</small></span></div></td><td>{languageName(doc.detected_language)}</td><td>{doc.extracted_entity_count ?? "Pending"}</td><td><Badge>{doc.status.toUpperCase()}</Badge></td><td><Button size="sm" variant="ghost" icon={<Eye />} disabled={!doc.view_url} onClick={() => window.open(apiAssetUrl(doc.view_url), "_blank", "noopener,noreferrer")}>View</Button></td></tr>)}</tbody></table></TableWrap>
       </Card>

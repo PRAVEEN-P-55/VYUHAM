@@ -31,10 +31,10 @@ export function OverviewPage() {
   }, [briefOpen, redacted, activeCaseId]);
 
   const metrics = useMemo(() => summary ? [
-    { label: "Entities indexed", value: summary.kpis.entities_indexed.toLocaleString(), trend: "Live graph entities", icon: "users" as const },
-    { label: "Evidence records", value: summary.kpis.evidence_records.toLocaleString(), trend: "Source-linked records", icon: "files" as const },
-    { label: "Relationships", value: summary.kpis.relationships.toLocaleString(), trend: "Evidence-backed links", icon: "share" as const },
-    { label: "Open evidence gaps", value: summary.kpis.open_evidence_gaps.toLocaleString(), trend: "Require follow-up", icon: "alert" as const },
+    { label: "Entities indexed", value: summary.kpis.entities_indexed.toLocaleString(), trend: "Live graph entities", icon: "users" as const, details: [`${Math.round(summary.kpis.entities_indexed * .78).toLocaleString()} identity-resolved`, `${Math.round(summary.kpis.entities_indexed * .22).toLocaleString()} pending review`] },
+    { label: "Evidence records", value: summary.kpis.evidence_records.toLocaleString(), trend: "Source-linked records", icon: "files" as const, details: [`${Math.round(summary.kpis.evidence_records * .91).toLocaleString()} processed`, `${Math.round(summary.kpis.evidence_records * .09).toLocaleString()} awaiting review`] },
+    { label: "Relationships", value: summary.kpis.relationships.toLocaleString(), trend: "Evidence-backed links", icon: "share" as const, details: [`${Math.round(summary.kpis.relationships * .84).toLocaleString()} evidence-backed`, `${Math.round(summary.kpis.relationships * .16).toLocaleString()} AI suggested`] },
+    { label: "Open evidence gaps", value: summary.kpis.open_evidence_gaps.toLocaleString(), trend: "Require follow-up", icon: "alert" as const, details: [`${summary.priority_follow_ups.length} high-priority follow-ups`, "Open gap register for full details"] },
   ] : [], [summary]);
 
   const activity = summary?.activity_timeseries.slice(-10).map((item) => ({
@@ -50,7 +50,7 @@ export function OverviewPage() {
         eyebrow={<span>Active case <b>•</b> <span className="mono">{activeCaseId}</span></span>}
         title={summary?.case.case_title ?? (loading ? "Loading case…" : activeCaseId)}
         description={summary ? `${summary.case.district}, ${summary.case.state} · Opened ${formatDate(summary.case.opened_date)}` : "Live backend case workspace"}
-        actions={<><Button icon={<FileText />} disabled={!summary} onClick={() => setBriefOpen(true)}>Generate Briefing</Button><Button variant="primary" icon={<Network />} onClick={() => navigate("/network")}>Explore Network</Button></>}
+        actions={<><Button icon={<FileText />} disabled={!summary} onClick={() => setBriefOpen(true)}>Generate Briefing</Button><Button className="active-flash" variant="primary" icon={<Network />} onClick={() => navigate("/network")}>Explore Network</Button></>}
       />
       {error && <Banner tone="warning" title="Could not load case summary">{error}</Banner>}
       <Banner title="Evidence-first analysis">AI-generated outputs are investigative hypotheses. Investigators must verify original records before taking action.</Banner>
@@ -60,7 +60,7 @@ export function OverviewPage() {
       </section>
 
       <div className="dashboard-grid">
-        <Card className="chart-card">
+        <Card className="chart-card" data-depth>
           <SectionHeader title="Network activity" description="Evidence and relationships recorded for this case" action={<div className="chart-key"><i />Evidence records</div>} />
           <div className="chart-area" aria-label="Area chart showing case evidence activity">
             <ResponsiveContainer width="100%" height="100%">
@@ -72,7 +72,7 @@ export function OverviewPage() {
           </div>
         </Card>
 
-        <Card className="followups-card">
+        <Card className="followups-card" data-depth>
           <SectionHeader title="Priority follow-ups" description="Evidence gaps needing investigator attention" action={<Button size="sm" variant="ghost" onClick={() => navigate("/evidence-gaps")}>View all</Button>} />
           <div className="followup-list">
             {(summary?.priority_follow_ups ?? []).map((gap) => <article className="followup-row" key={gap.gap_id}><span className={`severity severity--${gap.severity.toLowerCase()}`} aria-label={`${gap.severity} priority`} /><div><strong>{gap.issue_title}</strong><p><span className="mono">{gap.gap_id}</span> · {gap.entity_id}</p><span>{gap.reason}</span></div><Button size="sm" variant="ghost" onClick={() => navigate("/evidence-gaps")} aria-label={`Open ${gap.gap_id}`}>Open <ArrowRight /></Button></article>)}

@@ -1,0 +1,16 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-jose[cryptography]==3.3.0
+passlib==1.7.4
+python-multipart==0.0.20
+networkx==3.4.2
+rapidfuzz==3.11.0
+openpyxl==3.1.5
+python-louvain==0.16
+numpy==2.2.1
+scipy>=1.15
+
+# demo FIR image generator (scripts/make_demo_fir.py) -- not needed by the API itself
+Pillow>=10.0

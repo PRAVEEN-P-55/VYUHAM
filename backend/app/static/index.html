@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Vyuham Intelligence — API Tester</title>
+<style>
+  :root { --bg:#0f1116; --panel:#181b22; --panel2:#1f232c; --line:#2b303b;
+          --text:#e6e8ec; --muted:#9aa3b2; --accent:#5b9bd5; --good:#4caf7d;
+          --bad:#e05a5a; --warn:#d9a441; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  header { display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+           padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--line);
+           position:sticky; top:0; z-index:10; }
+  header h1 { font-size:14px; margin:0; letter-spacing:.5px; }
+  header .sp { flex:1; }
+  input, select, button, textarea {
+    font:inherit; background:var(--panel2); color:var(--text);
+    border:1px solid var(--line); border-radius:5px; padding:5px 8px; }
+  button { cursor:pointer; background:#26303c; }
+  button:hover { border-color:var(--accent); }
+  button.go { background:var(--accent); color:#08121c; border-color:var(--accent); font-weight:700; }
+  .pill { padding:2px 7px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+  .pill.ok { color:var(--good); border-color:var(--good); }
+  .pill.err { color:var(--bad); border-color:var(--bad); }
+  main { display:grid; grid-template-columns: 380px 1fr; gap:0; height:calc(100vh - 49px); }
+  #left { border-right:1px solid var(--line); overflow-y:auto; padding:12px; }
+  #right { overflow:auto; padding:12px; }
+  fieldset { border:1px solid var(--line); border-radius:7px; margin:0 0 12px; padding:10px; }
+  legend { color:var(--accent); padding:0 6px; font-weight:700; text-transform:uppercase;
+           font-size:11px; letter-spacing:1px; }
+  .row { display:flex; gap:6px; margin:5px 0; align-items:center; flex-wrap:wrap; }
+  .row label { color:var(--muted); min-width:74px; }
+  .row input, .row select { flex:1; min-width:80px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  h3 { margin:14px 0 6px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  pre { background:#0b0d12; border:1px solid var(--line); border-radius:7px; padding:10px;
+        overflow:auto; max-height:60vh; white-space:pre-wrap; word-break:break-word; }
+  .meta { color:var(--muted); margin:6px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  canvas { background:#0b0d12; border:1px solid var(--line); border-radius:7px; width:100%; height:440px; display:block; }
+  .k { color:var(--warn); }
+  table { border-collapse:collapse; width:100%; font-size:12px; margin-top:8px; }
+  th,td { border:1px solid var(--line); padding:4px 6px; text-align:left; vertical-align:top; }
+  th { color:var(--muted); position:sticky; top:0; background:var(--panel); }
+  .muted { color:var(--muted); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>VYUHAM · API TESTER</h1>
+  <span id="authState" class="pill">not signed in</span>
+  <span class="sp"></span>
+  <label class="muted">base</label>
+  <input id="base" style="width:210px" />
+  <a href="/docs" target="_blank">/docs</a>
+</header>
+
+<main>
+  <div id="left">
+    <fieldset>
+      <legend>1 · Auth</legend>
+      <div class="row"><label>investigator</label>
+        <select id="invId">
+          <option>INV001</option><option>INV002</option>
+          <option>INV003</option><option>INV004</option>
+        </select></div>
+      <div class="row"><label>password</label><input id="pw" value="vyuham123" /></div>
+      <div class="row"><button class="go" onclick="login()">Sign in</button>
+        <button onclick="logout()">Clear token</button></div>
+      <div id="invInfo" class="muted"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Case</legend>
+      <div class="row"><label>case_id</label>
+        <select id="caseSel" onchange="onCase()"></select>
+        <button onclick="loadCases()">↻</button></div>
+      <div class="row"><label>search</label><input id="caseSearch" placeholder="title / officer" />
+        <button onclick="loadCases()">find</button></div>
+      <div id="caseInfo" class="muted"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2 · Overview</legend>
+      <div class="row">
+        <button onclick="call('GET', ep('/cases/{c}/summary'))">summary</button>
+        <button onclick="call('GET', ep('/cases/{c}/influencers?limit=15'))">influencers</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>4 · Network Explorer</legend>
+      <div class="row"><label>root</label><input id="gRoot" placeholder="PH0061 (blank = whole case)" /></div>
+      <div class="row"><label>hops</label><input id="gHops" type="number" value="2" min="1" max="4" style="width:60px" />
+        <label>rel types</label><input id="gTypes" placeholder="CALLED,TRANSFERRED_TO" /></div>
+      <div class="grid2">
+        <input id="gFrom" placeholder="time_from ISO" />
+        <input id="gTo" placeholder="time_to ISO" />
+      </div>
+      <div class="row"><button class="go" onclick="runGraph()">query graph</button>
+        <span class="muted" id="gStat"></span></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>5 · Entity / Relationship</legend>
+      <div class="row"><label>entity_id</label><input id="entId" placeholder="PH0061" /></div>
+      <div class="row">
+        <button onclick="call('GET', ep('/cases/{c}/entities/'+val('entId')+'/summary'))">summary</button>
+        <button onclick="call('GET', ep('/cases/{c}/entities/'+val('entId')+'/document-mentions'))">doc-mentions</button>
+      </div>
+      <div class="row"><label>rel_id</label><input id="relId" placeholder="R000601" />
+        <button onclick="call('GET', ep('/cases/{c}/relationships/'+val('relId')))">relationship</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>+ · Enhancement layer</legend>
+      <div class="row"><label>from → to</label>
+        <input id="pathA" placeholder="PH0061" style="max-width:90px" />
+        <input id="pathB" placeholder="PH0062" style="max-width:90px" />
+        <button class="go" onclick="call('POST', ep('/cases/{c}/graph/path'), {source_entity_id: val('pathA'), target_entity_id: val('pathB'), max_hops: 4})">path</button></div>
+      <div class="row">
+        <button onclick="call('GET', ep('/cases/{c}/suggested-links?limit=15'))">suggested-links</button>
+        <button onclick="call('GET', ep('/cases/{c}/persons-of-interest'))">persons-of-interest</button>
+      </div>
+      <div class="row">
+        <button onclick="call('GET', ep('/cases/{c}/entities/'+val('entId')+'/risk'))">risk (entity_id above)</button>
+      </div>
+      <div class="row"><label>near loc</label><input id="nearLoc" placeholder="L0116" style="max-width:90px" />
+        <label>m</label><input id="nearR" value="1500" type="number" style="max-width:70px" />
+        <button onclick="call('GET', ep('/cases/{c}/entities/near?location_id='+val('nearLoc')+'&radius_m='+val('nearR')))">near</button></div>
+      <div class="row"><button onclick="call('GET', API()+'/analytics/capabilities')">capabilities</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>6 · Timeline / 7 · Patterns</legend>
+      <div class="row"><button onclick="call('GET', ep('/cases/{c}/timeline'))">timeline</button></div>
+      <div class="row"><label>type</label>
+        <select id="patType">
+          <option value="">(all)</option>
+          <option>STRUCTURING</option><option>CIRCULAR_FLOW</option><option>MULE_ACCOUNT</option>
+          <option>PRE_INCIDENT_CALL_BURST</option><option>UNUSUAL_TIMING</option><option>CROSS_CASE_RECURRENCE</option>
+        </select></div>
+      <div class="row">
+        <button onclick="call('GET', ep('/cases/{c}/patterns'+patQ()))">patterns</button>
+        <button onclick="call('GET', ep('/cases/{c}/patterns?cross_case=true'))">cross-case only</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>8 · MO Comparison</legend>
+      <div class="row"><label>incident</label><input id="incId" value="INC0001" />
+        <button onclick="call('GET', ep('/incidents/'+val('incId')+'/similar-mo'))">similar-mo</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>9 · Identity Review</legend>
+      <div class="row"><button onclick="loadCandidates()">candidates</button></div>
+      <div class="row"><label>candidate</label>
+        <select id="candSel" style="flex:1"></select></div>
+      <div class="row">
+        <button onclick="candAction('ACCEPT')">accept</button>
+        <button onclick="candAction('DEFER')">defer</button>
+        <button onclick="candAction('REJECT')">reject</button>
+        <button onclick="candReverse()">reverse</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>10 · Gaps / 12 · Export</legend>
+      <div class="row"><button onclick="call('GET', ep('/cases/{c}/evidence-gaps'))">evidence-gaps</button></div>
+      <div class="row"><label><input type="checkbox" id="redact" /> redact</label>
+        <button onclick="call('POST', ep('/cases/{c}/export'), {redact: byId('redact').checked})">export briefing</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3 · Documents</legend>
+      <div class="row"><input type="file" id="docFile" /></div>
+      <div class="row"><button onclick="uploadDoc()">upload</button>
+        <button onclick="call('GET', ep('/cases/{c}/documents'))">list docs</button></div>
+      <div class="row"><label>job_id</label><input id="jobId" />
+        <button onclick="pollJob()">poll events</button></div>
+      <div class="row muted" style="font-size:11px">demo FIRs: <code>backend/data/documents/FIR0001.png</code>,
+        <code>FIR-2024-DEMO-511.png</code> (run <code>python scripts/make_demo_fir.py --all</code>)</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>13 · Audit</legend>
+      <div class="row">
+        <input id="auditInv" placeholder="investigator" style="width:110px" />
+        <input id="auditAct" placeholder="action" style="width:110px" />
+        <button onclick="call('GET', ep('/audit-log'+auditQ()))">audit-log</button>
+      </div>
+    </fieldset>
+  </div>
+
+  <div id="right">
+    <div id="graphWrap" hidden>
+      <h3>graph — <span id="graphCounts" class="muted"></span></h3>
+      <canvas id="cv" width="900" height="440"></canvas>
+      <div class="muted">drag nodes · click a node to fill entity_id · hover for label</div>
+      <div id="graphTables"></div>
+    </div>
+    <div class="meta">
+      <span id="reqLine" class="muted"></span>
+      <span id="statusPill" class="pill"></span>
+      <span id="timing" class="muted"></span>
+    </div>
+    <pre id="out">Sign in, pick a case, hit a button. Responses land here.</pre>
+  </div>
+</main>
+
+<script>
+const byId = id => document.getElementById(id);
+const val = id => (byId(id)?.value || '').trim();
+let TOKEN = localStorage.getItem('vyuham_token') || '';
+// base always tracks the origin serving this page; editable per session, not persisted
+byId('base').value = location.origin + '/api/v1';
+
+function setAuth(ok, txt){
+  const el = byId('authState');
+  el.textContent = txt; el.className = 'pill ' + (ok ? 'ok' : 'err');
+}
+if (TOKEN) setAuth(true, 'token stored');
+
+function headers(json=true){
+  const h = {};
+  if (json) h['content-type'] = 'application/json';
+  if (TOKEN) h['authorization'] = 'Bearer ' + TOKEN;
+  return h;
+}
+const API = () => byId('base').value.trim().replace(/\/$/,'');
+function ep(path){ return API() + path.replace('{c}', currentCase()); }
+function currentCase(){ return byId('caseSel').value || 'CASE0001'; }
+
+function show(reqLine, status, ms, data){
+  byId('reqLine').textContent = reqLine;
+  const p = byId('statusPill');
+  p.textContent = status; p.className = 'pill ' + (status >= 200 && status < 300 ? 'ok' : 'err');
+  byId('timing').textContent = ms + ' ms';
+  byId('out').textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+}
+
+async function call(method, url, body){
+  const t0 = performance.now();
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: headers(!!body || method !== 'GET'),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const ms = Math.round(performance.now() - t0);
+    let data; const txt = await res.text();
+    try { data = JSON.parse(txt); } catch { data = txt; }
+    show(`${method} ${url}`, res.status, ms, data);
+    return { res, data };
+  } catch (e){
+    show(`${method} ${url}`, 0, Math.round(performance.now()-t0), 'FETCH FAILED: ' + e.message +
+      '\n\nIs the server running? Is base URL right?');
+  }
+}
+
+async function login(){
+  const r = await call('POST', API() + '/auth/login',
+    { investigator_id: byId('invId').value, password: val('pw') });
+  if (r && r.data && r.data.token){
+    TOKEN = r.data.token;
+    localStorage.setItem('vyuham_token', TOKEN);
+    setAuth(true, 'signed in: ' + r.data.investigator.id);
+    byId('invInfo').textContent =
+      `${r.data.investigator.name} · ${r.data.investigator.role} · cases: ` +
+      (r.data.investigator.case_ids.join(', ').slice(0,120));
+    loadCases();
+  }
+}
+function logout(){ TOKEN=''; localStorage.removeItem('vyuham_token'); setAuth(false,'not signed in'); }
+
+async function loadCases(){
+  const sel = byId('caseSel');
+  const info = byId('caseInfo');
+  if (!TOKEN){ info.textContent = '⚠ sign in first (panel 1)'; return; }
+  const q = val('caseSearch') ? ('?search=' + encodeURIComponent(val('caseSearch')) + '&page_size=300')
+                              : '?page_size=300';
+  const url = API() + '/cases' + q;
+  let r;
+  try { r = await fetch(url, { headers: headers() }); }
+  catch (e){ info.textContent = '⚠ fetch failed: ' + e.message + ' — check base URL / server'; return; }
+  const txt = await r.text();
+  if (!r.ok){
+    info.textContent = `⚠ GET /cases → ${r.status}`;
+    show('GET ' + url, r.status, 0, txt);
+    return;
+  }
+  const data = JSON.parse(txt);
+  const prev = sel.value;
+  sel.innerHTML = '';
+  (data.items || []).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.case_id;
+    o.textContent = `${c.case_id} — ${c.case_title} (${c.status})`;
+    sel.appendChild(o);
+  });
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  info.textContent = `${sel.options.length} cases loaded`;
+  onCase();
+  show('GET ' + url, r.status, 0, data);
+}
+function onCase(){
+  const o = byId('caseSel').selectedOptions[0];
+  byId('caseInfo').textContent = o ? o.textContent : '';
+}
+
+function patQ(){ const t = byId('patType').value; return t ? '?type=' + t : ''; }
+function auditQ(){
+  const p = [];
+  if (val('auditInv')) p.push('investigator=' + encodeURIComponent(val('auditInv')));
+  if (val('auditAct')) p.push('action=' + encodeURIComponent(val('auditAct')));
+  return p.length ? '?' + p.join('&') : '';
+}
+
+/* ---------- graph ---------- */
+let G = { nodes: [], edges: [] }, drag = null, raf = null;
+async function runGraph(){
+  const body = {
+    root_entity_id: val('gRoot') || null,
+    hops: parseInt(val('gHops') || '2', 10),
+    relationship_types: val('gTypes') ? val('gTypes').split(',').map(s=>s.trim()).filter(Boolean) : null,
+    time_from: val('gFrom') || null,
+    time_to: val('gTo') || null,
+  };
+  const r = await call('POST', ep('/cases/{c}/graph/query'), body);
+  if (!r || !r.data || !r.data.nodes) return;
+  byId('graphWrap').hidden = false;
+  byId('gStat').textContent = `${r.data.nodes.length} nodes / ${r.data.edges.length} edges`;
+  byId('graphCounts').textContent = byId('gStat').textContent;
+  layout(r.data);
+  renderGraphTables(r.data);
+}
+const COLORS = { PERSON:'#e0b341', PHONE:'#5b9bd5', ACCOUNT:'#4caf7d', ORGANIZATION:'#c678dd',
+                 LOCATION:'#e06c75', VEHICLE:'#56b6c2', INCIDENT:'#d19a66', UNKNOWN:'#888' };
+function layout(data){
+  const cv = byId('cv'), W = cv.width, H = cv.height;
+  G.nodes = data.nodes.map((n,i) => ({
+    ...n, x: W/2 + Math.cos(i)* (120 + i*3), y: H/2 + Math.sin(i)*(120 + i*3), vx:0, vy:0
+  }));
+  const idx = Object.fromEntries(G.nodes.map((n,i)=>[n.entity_id,i]));
+  G.edges = data.edges.map(e => ({ ...e, a: idx[e.source_entity_id], b: idx[e.target_entity_id] }))
+                      .filter(e => e.a != null && e.b != null);
+  if (raf) cancelAnimationFrame(raf);
+  step(0);
+}
+function step(t){
+  const cv = byId('cv'), W = cv.width, H = cv.height;
+  for (let i=0;i<G.nodes.length;i++){
+    const a = G.nodes[i];
+    for (let j=i+1;j<G.nodes.length;j++){
+      const b = G.nodes[j];
+      let dx=a.x-b.x, dy=a.y-b.y, d=Math.hypot(dx,dy)||1;
+      const f = 2600 / (d*d);
+      dx/=d; dy/=d;
+      a.vx += dx*f; a.vy += dy*f; b.vx -= dx*f; b.vy -= dy*f;
+    }
+    a.vx += (W/2 - a.x) * 0.002; a.vy += (H/2 - a.y) * 0.002;
+  }
+  for (const e of G.edges){
+    const a=G.nodes[e.a], b=G.nodes[e.b];
+    let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy)||1;
+    const f=(d-90)*0.02; dx/=d; dy/=d;
+    a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
+  }
+  for (const n of G.nodes){
+    if (drag === n) continue;
+    n.x += (n.vx *= 0.82); n.y += (n.vy *= 0.82);
+    n.x = Math.max(16, Math.min(W-16, n.x)); n.y = Math.max(16, Math.min(H-16, n.y));
+  }
+  draw();
+  if (t < 400) raf = requestAnimationFrame(() => step(t+1));
+}
+function draw(){
+  const cv = byId('cv'), g = cv.getContext('2d');
+  g.clearRect(0,0,cv.width,cv.height);
+  g.lineWidth = 1;
+  for (const e of G.edges){
+    const a=G.nodes[e.a], b=G.nodes[e.b];
+    g.strokeStyle = e.review_status === 'CONFIRMED' ? '#3f6b52'
+                  : e.review_status === 'DISPUTED' ? '#7a3b3b' : '#444b58';
+    g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke();
+    g.fillStyle = '#6b7280'; g.font = '9px monospace';
+    g.fillText(e.relationship_type, (a.x+b.x)/2, (a.y+b.y)/2);
+  }
+  for (const n of G.nodes){
+    g.fillStyle = COLORS[n.entity_type] || COLORS.UNKNOWN;
+    g.beginPath(); g.arc(n.x,n.y, n.entity_id === val('gRoot') ? 9 : 6, 0, 7); g.fill();
+    g.fillStyle = '#cdd3dc'; g.font = '10px monospace';
+    g.fillText(n.label ? (n.entity_id + ' ' + n.label).slice(0,22) : n.entity_id, n.x+9, n.y+3);
+  }
+}
+const cv = byId('cv');
+cv.addEventListener('mousedown', ev => {
+  const r = cv.getBoundingClientRect();
+  const mx = (ev.clientX-r.left) * cv.width/r.width, my = (ev.clientY-r.top) * cv.height/r.height;
+  drag = G.nodes.find(n => Math.hypot(n.x-mx, n.y-my) < 12) || null;
+  if (drag){ byId('entId').value = drag.entity_id; byId('gRoot').value = drag.entity_id; }
+});
+cv.addEventListener('mousemove', ev => {
+  if (!drag) return;
+  const r = cv.getBoundingClientRect();
+  drag.x = (ev.clientX-r.left) * cv.width/r.width;
+  drag.y = (ev.clientY-r.top) * cv.height/r.height;
+  drag.vx = drag.vy = 0; draw();
+});
+window.addEventListener('mouseup', () => drag = null);
+
+function renderGraphTables(data){
+  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  let h = '<h3>edges</h3><table><tr><th>type</th><th>src</th><th>tgt</th><th>review</th><th>conf</th><th>rel_ids</th><th>evidence_summary</th></tr>';
+  for (const e of data.edges){
+    h += `<tr><td class="k">${esc(e.relationship_type)}</td><td>${esc(e.source_entity_id)}</td>
+      <td>${esc(e.target_entity_id)}</td><td>${esc(e.review_status)}</td><td>${esc(e.confidence)}</td>
+      <td>${esc((e.relationship_ids||[]).join(', '))}</td>
+      <td>${esc(e.evidence_summary && e.evidence_summary.explanation)}</td></tr>`;
+  }
+  h += '</table><h3>nodes</h3><table><tr><th>id</th><th>type</th><th>label</th><th>risk</th><th>cases</th></tr>';
+  for (const n of data.nodes){
+    h += `<tr><td>${esc(n.entity_id)}</td><td class="k">${esc(n.entity_type)}</td><td>${esc(n.label)}</td>
+      <td>${esc((n.risk_indicators||[]).join(', '))}</td><td>${esc((n.case_ids||[]).join(', '))}</td></tr>`;
+  }
+  byId('graphTables').innerHTML = h + '</table>';
+}
+
+/* ---------- identity ---------- */
+async function loadCandidates(){
+  const r = await call('GET', ep('/cases/{c}/resolution-candidates'));
+  if (!r || !r.data || !r.data.items) return;
+  const sel = byId('candSel'); sel.innerHTML = '';
+  r.data.items.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.candidate_id;
+    o.textContent = `${c.candidate_id} · conf ${c.match_confidence} · ${c.recommended_action || ''}`;
+    sel.appendChild(o);
+  });
+}
+function candAction(a){
+  if (!byId('candSel').value) return alert('load candidates first');
+  call('POST', ep('/cases/{c}/resolution-candidates/' + byId('candSel').value + '/action'),
+       { action: a });
+}
+function candReverse(){
+  if (!byId('candSel').value) return;
+  call('POST', ep('/cases/{c}/resolution-candidates/' + byId('candSel').value + '/reverse'));
+}
+
+/* ---------- documents ---------- */
+async function uploadDoc(){
+  const f = byId('docFile').files[0];
+  if (!f) return alert('pick a file');
+  const fd = new FormData(); fd.append('file', f);
+  const t0 = performance.now();
+  const res = await fetch(ep('/cases/{c}/documents'), { method:'POST', headers: headers(false), body: fd });
+  const data = await res.json().catch(()=>({}));
+  show('POST /cases/{c}/documents', res.status, Math.round(performance.now()-t0), data);
+  if (data.job_id){ byId('jobId').value = data.job_id; }
+}
+async function pollJob(){
+  const id = val('jobId'); if (!id) return;
+  for (let i=0;i<9;i++){
+    const r = await call('GET', API() + '/jobs/' + id + '/events');
+    if (!r || !r.data) break;
+    if (r.data.status === 'completed' || r.data.status === 'failed') break;
+    await new Promise(s => setTimeout(s, 1400));
+  }
+}
+
+if (TOKEN) loadCases();
+</script>
+</body>
+</html>

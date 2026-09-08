@@ -730,7 +730,7 @@ export function NetworkPage() {
               onEdgeMouseLeave={() => setHoveredEdge(null)}
               onPaneClick={() => { setSelectedNode(null); setSelectedEdge(null); setTracedEdges(new Set()); }}
               fitView
-              fitViewOptions={{ padding: 0.12, maxZoom: 0.9 }}
+              fitViewOptions={{ padding: 0.18, maxZoom: 1.4 }}
               minZoom={0.04}
               maxZoom={2.5}
               colorMode="light"

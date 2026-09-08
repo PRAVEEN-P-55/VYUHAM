@@ -383,13 +383,12 @@ td strong { color: var(--color-text-primary); }
 /* Network explorer — full viewport canvas */
 .page--network {
   max-width: none;
-  height: calc(100dvh - var(--header-height));
-  min-height: 600px;
+  min-height: calc(100dvh - var(--header-height));
   display: flex;
   flex-direction: column;
   padding: 0;
   gap: 0;
-  overflow: hidden;
+  overflow: auto;
 }
 .page--network .page-header {
   flex: 0 0 auto;

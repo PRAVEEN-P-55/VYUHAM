@@ -126,6 +126,7 @@ CREATE TABLE upload_jobs (
   status TEXT,
   detected_language TEXT,
   extracted_entity_count INTEGER,
+  extracted_entity_ids TEXT NOT NULL DEFAULT '[]',
   error TEXT,
   created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
   updated_at TEXT

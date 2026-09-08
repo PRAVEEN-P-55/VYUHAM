@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, FileText, Network, Printer, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Clock3, FileText, Network, Printer, Search, ShieldCheck, Sparkles, UploadCloud } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -45,13 +45,26 @@ export function OverviewPage() {
   const brief = briefing?.content;
 
   return (
-    <div className="page">
+    <div className="page page--overview">
       <PageHeader
         eyebrow={<span>Active case <b>•</b> <span className="mono">{activeCaseId}</span></span>}
         title={summary?.case.case_title ?? (loading ? "Loading case…" : activeCaseId)}
         description={summary ? `${summary.case.district}, ${summary.case.state} · Opened ${formatDate(summary.case.opened_date)}` : "Live backend case workspace"}
         actions={<><Button icon={<FileText />} disabled={!summary} onClick={() => setBriefOpen(true)}>Generate Briefing</Button><Button className="active-flash" variant="primary" icon={<Network />} onClick={() => navigate("/network")}>Explore Network</Button></>}
       />
+      <section className="overview-launchpad" aria-labelledby="investigation-launcher-title">
+        <div className="overview-launchpad__label"><Sparkles aria-hidden="true" /><span id="investigation-launcher-title">Investigation launcher</span></div>
+        <button className="overview-launchpad__prompt" onClick={() => navigate("/search")}>
+          <Search aria-hidden="true" />
+          <span><strong>What would you like to investigate?</strong><small>Search a person, phone, vehicle, account, identifier, or evidence source</small></span>
+          <kbd>Ctrl K</kbd>
+        </button>
+        <div className="overview-launchpad__actions">
+          <button onClick={() => navigate("/document-intake")}><UploadCloud aria-hidden="true" />Add evidence</button>
+          <button onClick={() => navigate("/network")}><Network aria-hidden="true" />Explore network</button>
+          <button onClick={() => navigate("/timeline")}><Clock3 aria-hidden="true" />Build timeline</button>
+        </div>
+      </section>
       {error && <Banner tone="warning" title="Could not load case summary">{error}</Banner>}
       <Banner title="Evidence-first analysis">AI-generated outputs are investigative hypotheses. Investigators must verify original records before taking action.</Banner>
 
@@ -65,8 +78,8 @@ export function OverviewPage() {
           <div className="chart-area" aria-label="Area chart showing case evidence activity">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activity} margin={{ top: 12, right: 8, left: -20, bottom: 0 }}>
-                <defs><linearGradient id="recordFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2563EB" stopOpacity={0.17} /><stop offset="100%" stopColor="#2563EB" stopOpacity={0.01} /></linearGradient></defs>
-                <CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#64748B", fontSize: 12 }} /><YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: "#64748B", fontSize: 12 }} /><Tooltip contentStyle={{ border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 4px 12px rgba(15,23,42,.08)", fontSize: 12 }} /><Area type="monotone" dataKey="records" stroke="#2563EB" strokeWidth={2.5} fill="url(#recordFill)" />
+                <defs><linearGradient id="recordFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7B49CA" stopOpacity={0.22} /><stop offset="100%" stopColor="#00C4CC" stopOpacity={0.02} /></linearGradient></defs>
+                <CartesianGrid stroke="#EEEAF5" vertical={false} /><XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#6B6476", fontSize: 12 }} /><YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: "#6B6476", fontSize: 12 }} /><Tooltip contentStyle={{ border: "1px solid #DED8EB", borderRadius: 14, boxShadow: "0 12px 32px rgba(62,35,92,.12)", fontSize: 12 }} /><Area type="monotone" dataKey="records" stroke="#7B49CA" strokeWidth={2.5} fill="url(#recordFill)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

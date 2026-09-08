@@ -26,7 +26,7 @@ from app.routers import (
     search,
     timeline,
 )
-from app.services import graph_store
+from app.services import graph_store, jobs
 
 
 @asynccontextmanager
@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(
             f"No database at {settings.db_path}. Run: python scripts/seed_from_datasets.py"
         )
+    jobs.ensure_schema()
     graph_store.ensure_loaded()
     yield
 

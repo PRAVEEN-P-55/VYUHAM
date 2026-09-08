@@ -158,8 +158,9 @@ def _load() -> None:
         rel_rows=rel_rows,
         case_rels={k: v for k, v in case_rels.items()},
         evidence=evidence,
-        merges={},          # canonical_id -> [merged_away_ids]
-        merged_into={},     # merged_away_id -> canonical_id
+        merges={},              # canonical_id -> [merged_away_ids]
+        merged_into={},         # merged_away_id -> canonical_id
+        document_entities={},   # document_id -> [entity_ids]
     )
 
 
@@ -382,6 +383,22 @@ def _build_collapsed(rel_ids: list[str]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# document entity registry
+# ---------------------------------------------------------------------------
+def register_document_entities(document_id: str, entity_ids: list[str]) -> None:
+    """Record which entity IDs were extracted from an uploaded document."""
+    ensure_loaded()
+    canonical = [_canon(eid) for eid in entity_ids]
+    _state["document_entities"][document_id] = canonical
+
+
+def get_document_entity_ids(document_id: str) -> list[str]:
+    """Return entity IDs previously registered for this document."""
+    ensure_loaded()
+    return list(_state["document_entities"].get(document_id, []))
+
+
+# ---------------------------------------------------------------------------
 # query
 # ---------------------------------------------------------------------------
 def query(
@@ -391,7 +408,15 @@ def query(
     rel_types: list[str] | None = None,
     time_from: str | None = None,
     time_to: str | None = None,
+    seed_entity_ids: list[str] | None = None,
 ) -> dict:
+    """Build graph for a case, optionally scoped to a seed set of entity IDs.
+
+    When `seed_entity_ids` is provided (e.g. from a document upload), BFS
+    starts from ALL those seeds simultaneously. This makes the uploaded
+    evidence the conceptual root of the network, with connections fanning
+    outward by `hops` layers.
+    """
     ensure_loaded()
     rel_ids = case_relationship_ids(case_id)
     rows = [_state["rel_rows"][r] for r in rel_ids if r in _state["rel_rows"]]
@@ -411,7 +436,30 @@ def query(
         adj[a].add(b)
         adj[b].add(a)
 
-    if root_entity_id:
+    if seed_entity_ids:
+        # Multi-root BFS — all document entities are depth-0 seeds
+        seeds = {_canon(eid) for eid in seed_entity_ids}
+        keep = set(seeds)
+        frontier = deque([(s, 0) for s in seeds])
+        while frontier:
+            node, depth = frontier.popleft()
+            if depth >= hops:
+                continue
+            for nbr in adj[node]:
+                if nbr not in keep:
+                    keep.add(nbr)
+                    frontier.append((nbr, depth + 1))
+        # Tag each node with its depth from the seed set so the frontend
+        # can render concentric rings (seed = ring 0, neighbors = ring 1, ...)
+        depth_map: dict[str, int] = {s: 0 for s in seeds}
+        ring_queue = deque([(s, 0) for s in seeds])
+        while ring_queue:
+            node, depth = ring_queue.popleft()
+            for nbr in adj[node]:
+                if nbr not in depth_map:
+                    depth_map[nbr] = depth + 1
+                    ring_queue.append((nbr, depth + 1))
+    elif root_entity_id:
         root = _canon(root_entity_id)
         keep = {root}
         frontier = deque([(root, 0)])
@@ -423,12 +471,14 @@ def query(
                 if nbr not in keep:
                     keep.add(nbr)
                     frontier.append((nbr, depth + 1))
+        depth_map = {}
     else:
         keep = set(adj)
         if len(keep) > settings.max_graph_nodes:
             keep = set(
                 sorted(keep, key=lambda n: len(adj[n]), reverse=True)[: settings.max_graph_nodes]
             )
+        depth_map = {}
 
     kept_rows = [
         r for r in rows
@@ -438,7 +488,15 @@ def query(
     node_ids = {e["source_entity_id"] for e in edges} | {e["target_entity_id"] for e in edges}
     if root_entity_id:
         node_ids.add(_canon(root_entity_id))
-    nodes = [node_public(nid) for nid in sorted(node_ids)]
+    if seed_entity_ids:
+        node_ids.update(_canon(eid) for eid in seed_entity_ids)
+    nodes = []
+    for nid in sorted(node_ids):
+        pub = node_public(nid)
+        # Attach ring depth so the frontend can position nodes in concentric circles
+        pub["ring_depth"] = depth_map.get(nid, 1)
+        pub["is_seed"] = seed_entity_ids is not None and nid in {_canon(e) for e in (seed_entity_ids or [])}
+        nodes.append(pub)
     return {"nodes": nodes, "edges": edges}
 
 

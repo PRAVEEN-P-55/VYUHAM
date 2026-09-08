@@ -62,18 +62,37 @@ export function InteractionLayer() {
 
   useEffect(() => {
     let moveFrame = 0;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = (event.target as HTMLElement).closest<HTMLElement>(".button:not(:disabled), .icon-button:not(:disabled), .nav-item, .filter-chip, .graph-quick-actions button");
-      if (!target || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const interactiveSelector = "button:not(:disabled), a[href], summary, label.drop-zone, label.case-switcher, .investigation-node, .react-flow__controls-button, [role='button']:not([aria-disabled='true'])";
+    const addRipple = (target: HTMLElement, clientX?: number, clientY?: number) => {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
       const rect = target.getBoundingClientRect();
+      const originX = clientX ?? rect.left + rect.width / 2;
+      const originY = clientY ?? rect.top + rect.height / 2;
+      const radiusX = Math.max(originX - rect.left, rect.right - originX);
+      const radiusY = Math.max(originY - rect.top, rect.bottom - originY);
+      const size = Math.hypot(radiusX, radiusY) * 2;
       const ripple = document.createElement("span");
-      const size = Math.max(rect.width, rect.height) * 1.4;
+      target.classList.add("click-reactive");
       ripple.className = "ink-ripple";
+      ripple.setAttribute("aria-hidden", "true");
       ripple.style.width = ripple.style.height = `${size}px`;
-      ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
-      ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+      ripple.style.left = `${originX - rect.left - size / 2}px`;
+      ripple.style.top = `${originY - rect.top - size / 2}px`;
       target.appendChild(ripple);
       window.setTimeout(() => ripple.remove(), 520);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const target = (event.target as HTMLElement).closest<HTMLElement>(interactiveSelector);
+      if (target) addRipple(target, event.clientX, event.clientY);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || (event.key !== "Enter" && event.key !== " ")) return;
+      const target = (event.target as HTMLElement).closest<HTMLElement>(interactiveSelector);
+      if (!target) return;
+      addRipple(target);
+      target.classList.add("click-reactive--keyboard");
+      window.setTimeout(() => target.classList.remove("click-reactive--keyboard"), 140);
     };
     const onClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -99,11 +118,13 @@ export function InteractionLayer() {
       card?.style.setProperty("--depth-y", "0px");
     };
     document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     document.addEventListener("click", onClick);
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerout", onLeave);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("click", onClick);
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerout", onLeave);

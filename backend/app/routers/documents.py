@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Up
 
 from app.config import settings
 from app.deps import Investigator, get_current_investigator, require_case_access
-from app.services import audit, jobs
+from app.services import audit, jobs, graph_store
 
 router = APIRouter(tags=["documents"])
 
@@ -60,3 +60,34 @@ def job_events(job_id: str, investigator: Investigator = Depends(get_current_inv
 def case_documents(case_id: str, investigator: Investigator = Depends(require_case_access)):
     items = jobs.list_case_documents(case_id)
     return {"items": items, "total": len(items)}
+
+
+@router.get("/cases/{case_id}/documents/{document_id}/entities")
+def document_entities(
+    case_id: str,
+    document_id: str,
+    investigator: Investigator = Depends(require_case_access),
+):
+    """Return entity IDs extracted from a specific document.
+
+    The uploaded evidence becomes the conceptual center of the network —
+    the frontend uses these IDs to scope the radial graph so the document
+    is ring 0 and all connected entities fan outward from it.
+    """
+    # Try live-upload registry first (set after GRAPH_UPDATE completes)
+    entity_ids = graph_store.get_document_entity_ids(document_id)
+
+    # Fall back to seed FIR documents for the demo case records
+    if not entity_ids:
+        entity_ids = jobs.get_document_entity_ids_from_seed(document_id, case_id)
+
+    # Also register them now so subsequent graph queries can find them
+    if entity_ids:
+        graph_store.register_document_entities(document_id, entity_ids)
+
+    return {
+        "document_id": document_id,
+        "case_id": case_id,
+        "entity_ids": entity_ids,
+        "total": len(entity_ids),
+    }

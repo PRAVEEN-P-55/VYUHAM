@@ -57,7 +57,15 @@ export type JobStatus = {
   status: string;
   detected_language: string | null;
   extracted_entity_count: number | null;
+  extracted_entity_ids: string[];
   error: string | null;
+};
+
+export type DocumentEntityResult = {
+  document_id: string;
+  case_id: string;
+  entity_ids: string[];
+  total: number;
 };
 
 export type GraphNode = {
@@ -353,7 +361,8 @@ export const api = {
   listDocuments: (caseId: string) => request<ItemsResponse<CaseDocument>>(`/cases/${encodeURIComponent(caseId)}/documents`),
   uploadDocument: (caseId: string, body: FormData) => request<{ job_id: string; document_id: string }>(`/cases/${encodeURIComponent(caseId)}/documents`, { method: "POST", body }),
   jobEvents: (jobId: string) => request<JobStatus>(`/jobs/${encodeURIComponent(jobId)}/events`),
-  graphQuery: (caseId: string, payload: { root_entity_id?: string; hops?: number; relationship_types?: string[]; time_from?: string; time_to?: string }) => request<GraphResponse>(`/cases/${encodeURIComponent(caseId)}/graph/query`, { method: "POST", body: JSON.stringify(payload) }),
+  graphQuery: (caseId: string, payload: { root_entity_id?: string; hops?: number; relationship_types?: string[]; time_from?: string; time_to?: string; document_id?: string }) =>
+    request<GraphResponse>(`/cases/${encodeURIComponent(caseId)}/graph/query`, { method: "POST", body: JSON.stringify(payload) }),
   searchEntities: (query: string, entityType?: string, limit = 40) =>
     request<ItemsResponse<EntitySearchResult>>(`/search/entities${params({ q: query, entity_type: entityType, limit })}`),
   entitySummary: (caseId: string, entityId: string) => request<EntitySummary>(`/cases/${encodeURIComponent(caseId)}/entities/${encodeURIComponent(entityId)}/summary`),
@@ -381,6 +390,8 @@ export const api = {
   entityRisk: (caseId: string, entityId: string) =>
     request<EntityRisk>(`/cases/${encodeURIComponent(caseId)}/entities/${encodeURIComponent(entityId)}/risk`),
   analyticsCapabilities: () => request<Record<string, unknown>>(`/analytics/capabilities`),
+  documentEntities: (caseId: string, documentId: string) =>
+    request<DocumentEntityResult>(`/cases/${encodeURIComponent(caseId)}/documents/${encodeURIComponent(documentId)}/entities`),
 };
 
 export const apiAssetUrl = (path: string) => {

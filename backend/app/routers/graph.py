@@ -16,6 +16,9 @@ class GraphQuery(BaseModel):
     relationship_types: list[str] | None = None
     time_from: str | None = None
     time_to: str | None = None
+    # When set, only entities extracted from this document are shown as seeds.
+    # The graph then BFS-expands outward from those seeds by `hops`.
+    document_id: str | None = None
 
 
 @router.post("/cases/{case_id}/graph/query")
@@ -24,6 +27,11 @@ def graph_query(
     body: GraphQuery,
     investigator: Investigator = Depends(require_case_access),
 ):
+    # Resolve seed entity IDs from document if provided
+    seed_entity_ids: list[str] | None = None
+    if body.document_id:
+        seed_entity_ids = graph_store.get_document_entity_ids(body.document_id)
+
     return graph_store.query(
         case_id,
         root_entity_id=body.root_entity_id,
@@ -31,4 +39,5 @@ def graph_query(
         rel_types=body.relationship_types,
         time_from=body.time_from,
         time_to=body.time_to,
+        seed_entity_ids=seed_entity_ids,
     )

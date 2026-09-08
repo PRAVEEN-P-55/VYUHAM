@@ -2,19 +2,23 @@ import {
   Bell,
   BookOpenCheck,
   BriefcaseBusiness,
+  CheckCircle2,
   ChevronDown,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   FileClock,
   FileSearch,
   Files,
   GitCompareArrows,
+  Keyboard,
   LayoutDashboard,
   Menu,
   Network,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   ScanSearch,
   Search,
   ShieldCheck,
@@ -59,11 +63,14 @@ export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [topbarMenu, setTopbarMenu] = useState<"notifications" | "profile" | null>(null);
+  const [unreadNotifications, setUnreadNotifications] = useState(3);
   const [sidebarMini, setSidebarMini] = useState(() => localStorage.getItem("vyuham.sidebar.mini") === "true");
   const [caseSwitching, setCaseSwitching] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const searchDialogRef = useRef<HTMLDivElement>(null);
   const searchPreviousFocus = useRef<HTMLElement | null>(null);
+  const topbarMenusRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { investigator, cases, casesLoading, activeCaseId, setActiveCaseId, signOut } = useAppContext();
@@ -74,8 +81,16 @@ export function AppShell() {
     { group: "Evidence", label: "Upload a document or image", hint: "Document intake", to: "/document-intake" },
     { group: "Governance", label: "Open case registry", hint: "Authorised cases", to: "/cases" },
   ].filter((item) => !query || `${item.label} ${item.group} ${item.hint}`.toLowerCase().includes(query.toLowerCase()));
+  const notifications = [
+    { title: "Evidence processing complete", detail: `${activeCaseId} is ready for review.`, time: "2 min", to: "/document-intake", tone: "success" },
+    { title: "Relationship needs review", detail: "A low-confidence network link needs supporting evidence.", time: "18 min", to: "/evidence-gaps", tone: "warning" },
+    { title: "Case activity recorded", detail: "The latest authorised case update is available in the audit log.", time: "1 hr", to: "/audit-log", tone: "info" },
+  ];
 
-  useEffect(() => setSidebarOpen(false), [location.pathname]);
+  useEffect(() => {
+    setSidebarOpen(false);
+    setTopbarMenu(null);
+  }, [location.pathname]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -95,6 +110,22 @@ export function AppShell() {
     searchRef.current?.focus();
     return () => searchPreviousFocus.current?.focus();
   }, [searchOpen]);
+
+  useEffect(() => {
+    if (!topbarMenu) return;
+    const closeFromOutside = (event: PointerEvent) => {
+      if (!topbarMenusRef.current?.contains(event.target as Node)) setTopbarMenu(null);
+    };
+    const closeFromKeyboard = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setTopbarMenu(null);
+    };
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", closeFromKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", closeFromKeyboard);
+    };
+  }, [topbarMenu]);
 
   const submitSearch = (event: React.FormEvent) => {
     event.preventDefault();
@@ -127,6 +158,10 @@ export function AppShell() {
           <div><strong>VYUHAM</strong><span>Criminal Network Intelligence</span></div>
           <button className="sidebar__close" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X /></button>
         </div>
+        <button className="sidebar__primary-action" onClick={() => navigate("/search")}>
+          <span><Plus size={20} strokeWidth={2.2} aria-hidden="true" /></span>
+          <strong>New analysis</strong>
+        </button>
         <nav>
           {navGroups.map((group) => (
             <div className="nav-group" key={group.label}>
@@ -157,10 +192,63 @@ export function AppShell() {
         <button className="global-search" onClick={() => setSearchOpen(true)} aria-label="Search entities, evidence or cases">
           <Search size={17} aria-hidden="true" /><span>Search entities, evidence or cases</span><kbd>Ctrl K</kbd>
         </button>
-        <div className="topbar__actions">
-          <button className="icon-button notification-button" aria-label="Notifications, 3 unread"><Bell /><span>3</span></button>
-          <div className="investigator"><span className="investigator__avatar" aria-hidden="true">{initials}</span><div><strong>{investigator?.name}</strong><small>{investigator?.role.replaceAll("_", " ")}</small></div></div>
-          <button className="icon-button" aria-label="Sign out" title="Sign out" onClick={() => { signOut(); navigate("/sign-in", { replace: true }); }}><LogOut /></button>
+        <div className="topbar__actions" ref={topbarMenusRef}>
+          <div className="topbar-menu">
+            <button
+              className="icon-button notification-button"
+              aria-label={`Notifications, ${unreadNotifications} unread`}
+              aria-expanded={topbarMenu === "notifications"}
+              aria-controls="notification-panel"
+              onClick={() => setTopbarMenu((value) => value === "notifications" ? null : "notifications")}
+            >
+              <Bell aria-hidden="true" />
+              {unreadNotifications > 0 && <span aria-hidden="true">{unreadNotifications}</span>}
+            </button>
+            <span className="sr-only" role="status" aria-atomic="true">{unreadNotifications} unread notifications</span>
+            {topbarMenu === "notifications" && (
+              <section id="notification-panel" className="topbar-popover notification-panel" aria-label="Notifications">
+                <header>
+                  <div><strong>Notifications</strong><span>{unreadNotifications ? `${unreadNotifications} require attention` : "You are all caught up"}</span></div>
+                  <button disabled={!unreadNotifications} onClick={() => setUnreadNotifications(0)}>Mark all read</button>
+                </header>
+                <div className="notification-list">
+                  {notifications.map((item, index) => (
+                    <button className={unreadNotifications > index ? "is-unread" : ""} key={item.title} onClick={() => { setTopbarMenu(null); navigate(item.to); }}>
+                      <i className={`notification-list__icon notification-list__icon--${item.tone}`} aria-hidden="true"><CheckCircle2 /></i>
+                      <span><strong>{item.title}</strong><small>{item.detail}</small><time>{item.time} ago</time></span>
+                      <ChevronRight aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+                <footer><span className="system-status"><i aria-hidden="true" />All systems operational</span></footer>
+              </section>
+            )}
+          </div>
+          <div className="topbar-menu">
+            <button
+              className="profile-trigger"
+              aria-label={`Open account menu for ${investigator?.name ?? "investigator"}`}
+              aria-expanded={topbarMenu === "profile"}
+              aria-controls="profile-panel"
+              onClick={() => setTopbarMenu((value) => value === "profile" ? null : "profile")}
+            >
+              <span className="investigator__avatar" aria-hidden="true">{initials}</span>
+              <span className="profile-trigger__text"><strong>{investigator?.name ?? "Investigator"}</strong><small>{investigator?.role.replaceAll("_", " ") ?? "Authorised user"}</small></span>
+              <ChevronDown className="profile-trigger__chevron" aria-hidden="true" />
+            </button>
+            {topbarMenu === "profile" && (
+              <section id="profile-panel" className="topbar-popover profile-panel" aria-label="Account menu">
+                <header><span className="investigator__avatar" aria-hidden="true">{initials}</span><div><strong>{investigator?.name ?? "Investigator"}</strong><span>{investigator?.role.replaceAll("_", " ") ?? "Authorised user"}</span></div></header>
+                <nav aria-label="Account shortcuts">
+                  <button onClick={() => navigate("/overview")}><LayoutDashboard aria-hidden="true" /><span><strong>My workspace</strong><small>Return to the case overview</small></span><ChevronRight aria-hidden="true" /></button>
+                  <button onClick={() => navigate("/cases")}><BriefcaseBusiness aria-hidden="true" /><span><strong>Case registry</strong><small>Review authorised cases</small></span><ChevronRight aria-hidden="true" /></button>
+                  <button onClick={() => { setTopbarMenu(null); setSearchOpen(true); }}><Keyboard aria-hidden="true" /><span><strong>Command search</strong><small>Search or jump to a workspace</small></span><kbd>Ctrl K</kbd></button>
+                  <button onClick={() => navigate("/audit-log")}><ShieldCheck aria-hidden="true" /><span><strong>Privacy &amp; activity</strong><small>Review access and audit history</small></span><ChevronRight aria-hidden="true" /></button>
+                </nav>
+                <footer><button className="profile-panel__signout" onClick={() => { signOut(); navigate("/sign-in", { replace: true }); }}><LogOut aria-hidden="true" />Sign out securely</button></footer>
+              </section>
+            )}
+          </div>
         </div>
       </header>
 

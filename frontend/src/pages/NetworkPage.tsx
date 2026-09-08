@@ -1,11 +1,11 @@
 import {
   Background, BackgroundVariant, Controls, Handle, MarkerType,
-  MiniMap, Position, ReactFlow,
+  Position, ReactFlow,
   type Edge, type Node, type NodeProps, useReactFlow,
 } from "@xyflow/react";
 import {
   ArrowLeft, Building2, Car, ChevronDown, ChevronUp, Clock3, Download,
-  Eye, FileText, Focus, Info, Landmark, MapPin, Network, Pause, Phone,
+  Eye, FileText, Focus, Landmark, MapPin, Network, Pause, Phone,
   Pin, Play, RotateCcw, Route as RouteIcon, Search, Siren,
   SlidersHorizontal, UserRound, X,
 } from "lucide-react";
@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Badge, Banner, Button, Card, ConfidenceMeter,
-  Drawer, EvidenceCard, Field, GraphLegend, PageHeader, Select,
+  Drawer, EvidenceCard, Field, PageHeader, Select,
 } from "../components/ui";
 import { useAppContext } from "../context/AppContext";
 import { useApiResource } from "../hooks/useApiResource";
@@ -24,7 +24,7 @@ import { asPercent, formatDate, titleCase } from "../utils/format";
 type GraphNodeData = {
   label: string; type: string; date: number;
   important?: boolean; root?: boolean; pinned?: boolean;
-  depth: number; isSeed?: boolean; isDoc?: boolean;
+  depth: number; isSeed?: boolean; isDoc?: boolean; rootCaption?: string;
 };
 type GraphEdgeData = {
   date: number; relation: string; confidence: number;
@@ -37,9 +37,8 @@ const entityLabel = (type: string) =>
   ({ ACCOUNT: "Bank Account", ORG: "Organization", DOCUMENT: "Evidence" }[type] ?? titleCase(type));
 
 const relationColour = (relation: string) => {
-  if (relation === "CALLED" || relation === "USES_PHONE") return "var(--relation-communication)";
-  if (relation === "TRANSFERRED_TO" || relation === "OWNS_ACCOUNT") return "var(--relation-financial)";
-  if (relation === "OWNS_VEHICLE") return "var(--relation-vehicle)";
+  if (relation === "CALLED" || relation === "CALLS" || relation === "USES_PHONE") return "var(--relation-communication)";
+  if (relation === "TRANSFERRED_TO" || relation === "TRANSFERS_TO") return "var(--relation-association)";
   if (relation === "MEMBER_OF" || relation === "ASSOCIATED_WITH") return "var(--relation-association)";
   if (relation === "CO_LOCATED_WITH") return "var(--relation-location)";
   if (relation === "PARTICIPATED_IN") return "var(--relation-incident)";
@@ -59,89 +58,139 @@ const iconFor = (type: string) => {
 };
 
 // ─── radial layout ────────────────────────────────────────────────────────────
-/**
- * Concentric-ring layout.
- *
- * Ring 0 = center (document / root entity)
- * Ring 1 = direct connections (seed entities when doc-mode, 1-hop neighbours otherwise)
- * Ring 2+ = further connections, spreading outward.
- *
- * Nodes in the same ring are evenly distributed around a circle whose radius
- * grows with depth so each ring has breathing room.
- */
-function concentricPositions(
+// ─── custom node ─────────────────────────────────────────────────────────────
+function investigationPositions(
   rootId: string | null,
-  nodes: string[],
+  nodes: Array<{ id: string; type: string }>,
   edges: Edge<GraphEdgeData>[],
-  depthMap?: Record<string, number>,
 ): Map<string, { x: number; y: number; depth: number }> {
   const positions = new Map<string, { x: number; y: number; depth: number }>();
+  const nodeIds = nodes.map((node) => node.id);
 
-  // Build adjacency
-  const adj = new Map<string, Set<string>>();
-  nodes.forEach((id) => adj.set(id, new Set()));
-  edges.forEach((e) => {
-    adj.get(e.source)?.add(e.target);
-    adj.get(e.target)?.add(e.source);
-  });
-
-  // Derive depth for each node
-  const depth = new Map<string, number>();
-  if (depthMap && Object.keys(depthMap).length) {
-    Object.entries(depthMap).forEach(([id, d]) => depth.set(id, d));
-    nodes.forEach((id) => { if (!depth.has(id)) depth.set(id, 99); });
-  } else if (rootId && nodes.includes(rootId)) {
-    depth.set(rootId, 0);
-    const queue = [rootId];
-    while (queue.length) {
-      const cur = queue.shift()!;
-      for (const nbr of adj.get(cur) ?? []) {
-        if (!depth.has(nbr)) { depth.set(nbr, (depth.get(cur) ?? 0) + 1); queue.push(nbr); }
-      }
-    }
-    nodes.forEach((id) => { if (!depth.has(id)) depth.set(id, 99); });
-  } else {
-    // Flat grid fallback when no root
-    const cols = Math.max(6, Math.ceil(Math.sqrt(nodes.length || 1)));
-    nodes.forEach((id, i) =>
-      positions.set(id, { x: (i % cols) * 200, y: Math.floor(i / cols) * 130, depth: 0 })
-    );
+  if (!rootId || !nodeIds.includes(rootId)) {
+    const cols = Math.max(5, Math.ceil(Math.sqrt(nodeIds.length || 1)));
+    nodes.forEach((node, index) => positions.set(node.id, {
+      x: (index % cols) * 170,
+      y: Math.floor(index / cols) * 112,
+      depth: 0,
+    }));
     return positions;
   }
 
-  // Group by ring
-  const rings = new Map<number, string[]>();
-  nodes.forEach((id) => {
-    const d = depth.get(id) ?? 99;
-    rings.set(d, [...(rings.get(d) ?? []), id]);
+  const adjacency = new Map<string, Set<string>>();
+  nodeIds.forEach((id) => adjacency.set(id, new Set()));
+  edges.forEach((edge) => {
+    adjacency.get(edge.source)?.add(edge.target);
+    adjacency.get(edge.target)?.add(edge.source);
+  });
+  const depth = new Map<string, number>([[rootId, 0]]);
+  const queue = [rootId];
+  while (queue.length) {
+    const current = queue.shift()!;
+    for (const neighbour of adjacency.get(current) ?? []) {
+      if (!depth.has(neighbour)) {
+        depth.set(neighbour, (depth.get(current) ?? 0) + 1);
+        queue.push(neighbour);
+      }
+    }
+  }
+  positions.set(rootId, { x: 0, y: 0, depth: 0 });
+
+  const sectors: Record<string, { angle: number; spread: number }> = {
+    "bank-account": { angle: -1.48, spread: 0.56 },
+    vehicle: { angle: -2.42, spread: 0.58 },
+    phone: { angle: 2.9, spread: 0.82 },
+    person: { angle: 1.28, spread: 1.58 },
+    location: { angle: -0.48, spread: 0.34 },
+    incident: { angle: -0.48, spread: 0.34 },
+    organization: { angle: 0.04, spread: 0.38 },
+    evidence: { angle: -1.57, spread: 0.35 },
+    unknown: { angle: 0.55, spread: 0.7 },
+  };
+  const xScale = 1.34;
+  const yScale = 0.62;
+  const angles = new Map<string, number>([[rootId, 0]]);
+  const directGroups = new Map<string, Array<{ id: string; type: string }>>();
+  nodes.filter((node) => depth.get(node.id) === 1).forEach((node) => {
+    const key = entityClass(entityLabel(node.type));
+    directGroups.set(key, [...(directGroups.get(key) ?? []), node]);
   });
 
-  // Place each ring
-  rings.forEach((ids, ring) => {
-    if (ring === 0) {
-      // Center — single node (or document virtual node)
-      ids.forEach((id) => positions.set(id, { x: 0, y: 0, depth: 0 }));
-      return;
-    }
-    // Radius grows non-linearly: each ring gets more space
-    const baseRadius = 380;
-    const radius = baseRadius + (ring - 1) * 440 + Math.sqrt(ids.length) * 35;
-    const startAngle = -Math.PI / 2; // start at top
-    ids.forEach((id, idx) => {
-      const angle = startAngle + (idx * Math.PI * 2) / ids.length;
-      positions.set(id, {
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius * 0.78,
+  directGroups.forEach((items, key) => {
+    const sector = sectors[key] ?? sectors.unknown;
+    items
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .forEach((node, index) => {
+        const offset = items.length === 1 ? 0 : index / (items.length - 1) - 0.5;
+        const angle = sector.angle + offset * sector.spread;
+        const radius = 258 + (index % 2) * 10;
+        angles.set(node.id, angle);
+        positions.set(node.id, {
+          x: Math.cos(angle) * radius * xScale,
+          y: Math.sin(angle) * radius * yScale,
+          depth: 1,
+        });
+      });
+  });
+
+  // Place indirect entities beside the neighbours that led to them. This keeps
+  // branches local instead of forcing second-hop links back through the centre.
+  const usedAngleBuckets = new Map<string, number>();
+  nodes
+    .filter((node) => (depth.get(node.id) ?? 99) > 1)
+    .sort((a, b) => (depth.get(a.id) ?? 99) - (depth.get(b.id) ?? 99) || a.id.localeCompare(b.id))
+    .forEach((node) => {
+      const neighbourAngles = [...(adjacency.get(node.id) ?? [])]
+        .map((id) => angles.get(id))
+        .filter((angle): angle is number => angle !== undefined);
+      const fallback = sectors[entityClass(entityLabel(node.type))] ?? sectors.unknown;
+      let angle = fallback.angle;
+      if (neighbourAngles.length) {
+        const x = neighbourAngles.reduce((sum, value) => sum + Math.cos(value), 0);
+        const y = neighbourAngles.reduce((sum, value) => sum + Math.sin(value), 0);
+        angle = Math.atan2(y, x);
+      }
+      const bucket = (Math.round(angle * 5) / 5).toFixed(1);
+      const used = usedAngleBuckets.get(bucket) ?? 0;
+      if (used > 0) {
+        const direction = used % 2 ? 1 : -1;
+        angle += direction * Math.ceil(used / 2) * 0.18;
+      }
+      usedAngleBuckets.set(bucket, used + 1);
+      const ring = Math.min(depth.get(node.id) ?? 2, 3);
+      const radius = 430 + (ring - 2) * 116;
+      angles.set(node.id, angle);
+      positions.set(node.id, {
+        x: Math.cos(angle) * radius * xScale,
+        y: Math.sin(angle) * radius * yScale,
         depth: ring,
       });
     });
 
+  // Disconnected results remain visible without disturbing the investigation tree.
+  nodes.filter((node) => !positions.has(node.id)).forEach((node, index) => {
+    const angle = index * 0.72;
+    positions.set(node.id, {
+      x: Math.cos(angle) * 570 * xScale,
+      y: Math.sin(angle) * 570 * yScale,
+      depth: 3,
+    });
   });
 
   return positions;
 }
 
-// ─── custom node ─────────────────────────────────────────────────────────────
+type HandleSide = "top" | "right" | "bottom" | "left";
+const nearestHandle = (
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): HandleSide => {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "right" : "left";
+  return dy > 0 ? "bottom" : "top";
+};
+
 function InvestigationNode({ data, selected }: NodeProps<Node<GraphNodeData>>) {
   const Icon = iconFor(data.type);
   const isDoc = data.isDoc;
@@ -160,7 +209,14 @@ function InvestigationNode({ data, selected }: NodeProps<Node<GraphNodeData>>) {
         data.type === "Person" && !data.root && !isSeed ? "investigation-node--connected-person" : "",
       ].filter(Boolean).join(" ")}
     >
-      <Handle type="target" position={Position.Top} />
+      <Handle id="target-top" type="target" position={Position.Top} />
+      <Handle id="target-right" type="target" position={Position.Right} />
+      <Handle id="target-bottom" type="target" position={Position.Bottom} />
+      <Handle id="target-left" type="target" position={Position.Left} />
+      <Handle id="source-top" type="source" position={Position.Top} />
+      <Handle id="source-right" type="source" position={Position.Right} />
+      <Handle id="source-bottom" type="source" position={Position.Bottom} />
+      <Handle id="source-left" type="source" position={Position.Left} />
       <span className="investigation-node__orb">
         <Icon aria-hidden="true" />
         {data.pinned && <i className="node-pin"><Pin aria-hidden="true" /></i>}
@@ -168,9 +224,8 @@ function InvestigationNode({ data, selected }: NodeProps<Node<GraphNodeData>>) {
       </span>
       <div className="investigation-node__label">
         <strong>{data.label}</strong>
-        <small>{data.root ? "EVIDENCE CENTER" : isSeed ? "FROM DOCUMENT" : data.type}</small>
+        <small>{data.root ? (data.rootCaption ?? "CENTRAL FOCUS") : isSeed ? "FROM DOCUMENT" : data.type}</small>
       </div>
-      <Handle type="source" position={Position.Bottom} />
     </div>
   );
 }
@@ -416,7 +471,6 @@ export function NetworkPage() {
   const [profileError, setProfileError] = useState("");
   const [reducedMotion, setReducedMotion] = useState(false);
   const [pinnedNodes, setPinnedNodes] = useState<Set<string>>(new Set());
-  const [focusTrail, setFocusTrail] = useState<string[]>([]);
   const [tracedEdges, setTracedEdges] = useState<Set<string>>(new Set());
   const [hoveredEdge, setHoveredEdge] = useState<{ edge: Edge<GraphEdgeData>; x: number; y: number } | null>(null);
 
@@ -453,16 +507,6 @@ export function NetworkPage() {
     return () => { current = false; };
   }, [activeCaseId, selectedNode]);
 
-  // Build depth map from backend ring_depth field
-  const depthMap = useMemo<Record<string, number>>(() => {
-    const m: Record<string, number> = {};
-    (data?.nodes ?? []).forEach((n) => {
-      const ringDepth = (n as ApiGraphNode & { ring_depth?: number }).ring_depth;
-      if (ringDepth !== undefined) m[n.entity_id] = ringDepth;
-    });
-    return m;
-  }, [data]);
-
   const dates = useMemo(() =>
     [...new Set((data?.edges ?? []).map((e) => e.valid_from).filter(Boolean) as string[])].sort(),
     [data]);
@@ -486,12 +530,11 @@ export function NetworkPage() {
     })), [data, dates]);
 
   // Positions — use concentric rings
-  const positions = useMemo(() => concentricPositions(
+  const positions = useMemo(() => investigationPositions(
     rootEntityId,
-    (data?.nodes ?? []).map((n) => n.entity_id),
+    (data?.nodes ?? []).map((node) => ({ id: node.entity_id, type: node.entity_type })),
     graphEdges,
-    documentId ? depthMap : undefined,
-  ), [data, graphEdges, rootEntityId, documentId, depthMap]);
+  ), [data, graphEdges, rootEntityId]);
 
   const graphNodes = useMemo<Node<GraphNodeData>[]>(() =>
     (data?.nodes ?? []).map((node) => {
@@ -503,6 +546,7 @@ export function NetworkPage() {
       return {
         id: node.entity_id,
         position: pos,
+        ariaLabel: `${node.label}, ${entityLabel(node.entity_type)}`,
         data: {
           label: node.label,
           type: entityLabel(node.entity_type),
@@ -558,22 +602,29 @@ export function NetworkPage() {
       const traced = tracedEdges.has(edge.id);
       const related = !selectedNode || edge.source === selectedNode || edge.target === selectedNode;
       const colour = relationColour(edge.data?.relation ?? "");
+      const sourcePosition = positions.get(edge.source) ?? { x: 0, y: 0 };
+      const targetPosition = positions.get(edge.target) ?? { x: 0, y: 0 };
+      const sourceSide = nearestHandle(sourcePosition, targetPosition);
+      const targetSide = nearestHandle(targetPosition, sourcePosition);
       return {
         ...edge,
+        sourceHandle: `source-${sourceSide}`,
+        targetHandle: `target-${targetSide}`,
+        type: "default",
         animated: (selected && playing) || traced,
-        markerEnd: { type: MarkerType.ArrowClosed, color: colour, width: 14, height: 14 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: colour, width: 11, height: 11 },
         labelStyle: { fill: colour, fontSize: 9, fontWeight: 700 },
-        labelBgStyle: { fill: "#ffffff", fillOpacity: 0.94 },
-        labelBgPadding: [5, 3] as [number, number],
-        labelBgBorderRadius: 4,
+        labelBgStyle: { fill: "#ffffff", fillOpacity: 0.92 },
+        labelBgPadding: [4, 2] as [number, number],
+        labelBgBorderRadius: 3,
         style: {
           stroke: traced ? "#2563eb" : colour,
-          strokeWidth: traced ? 4.5 : selected ? 4 : edge.data?.relation === "CALLED" || edge.data?.relation === "TRANSFERRED_TO" ? 2.8 : 2,
-          strokeDasharray: edge.data?.reviewStatus === "AI_SUGGESTED" ? "4 6" : undefined,
-          opacity: selectedEdge && !selected ? 0.24 : related ? 0.9 : 0.12,
+          strokeWidth: traced ? 4 : selected ? 3.5 : 1.8,
+          strokeDasharray: edge.data?.reviewStatus === "AI_SUGGESTED" || edge.data?.relation === "PARTICIPATED_IN" ? "3 6" : undefined,
+          opacity: selectedEdge && !selected ? 0.2 : related ? 0.84 : 0.1,
         },
       };
-    }), [filteredEdges, playing, selectedEdge, selectedNode, tracedEdges]);
+    }), [filteredEdges, playing, positions, selectedEdge, selectedNode, tracedEdges]);
 
   const rootNode = data?.nodes.find((n) => n.entity_id === rootEntityId);
   const mention = mentions[0];
@@ -581,7 +632,6 @@ export function NetworkPage() {
   const selectNode = (nodeId: string) => {
     setSelectedNode(nodeId);
     setSelectedEdge(null);
-    setFocusTrail((items) => [...items.filter((i) => i !== nodeId), nodeId].slice(-5));
   };
 
   const tracePath = () => {
@@ -730,20 +780,13 @@ export function NetworkPage() {
               onEdgeMouseLeave={() => setHoveredEdge(null)}
               onPaneClick={() => { setSelectedNode(null); setSelectedEdge(null); setTracedEdges(new Set()); }}
               fitView
-              fitViewOptions={{ padding: 0.18, maxZoom: 1.4 }}
-              minZoom={0.04}
+              fitViewOptions={{ padding: 0.08, maxZoom: 1.35 }}
+              minZoom={0.18}
               maxZoom={2.5}
               colorMode="light"
+              onlyRenderVisibleElements
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1.1} color="#CBD5E1" />
-              <MiniMap
-                pannable zoomable
-                nodeColor={(node) => {
-                  if (node.id === rootEntityId || (node.data as GraphNodeData).isSeed) return "#1d4ed8";
-                  return `var(--entity-${entityClass((node.data as GraphNodeData).type)})`;
-                }}
-                maskColor="rgba(248,250,252,.82)"
-              />
+              <Background variant={BackgroundVariant.Dots} gap={16} size={0.9} color="#d8e2ee" />
               <Controls showInteractive={false} />
               <GraphActions
                 selectedNode={selectedNode}
@@ -762,34 +805,6 @@ export function NetworkPage() {
             </ReactFlow>
           )}
 
-          {/* In-canvas focus label — zero vertical space stolen */}
-          {rootNode && !documentId && (
-            <div className="canvas-focus-label">
-              <span className="canvas-focus-label__title">{rootNode.label}</span>
-              <span className="canvas-focus-label__meta">
-                {rootNode.entity_id} · {entityLabel(rootNode.entity_type)} · {activeCaseId} ·{" "}
-                {visibleNodes.length} nodes · {visibleEdges.length} links
-              </span>
-              {(focusTrail.filter((id) => id !== rootEntityId).length > 0) && (
-                <nav className="canvas-breadcrumbs">
-                  <button onClick={() => { setSelectedNode(null); setFocusTrail([]); }}>
-                    {activeCaseId}
-                  </button>
-                  {rootEntityId && (
-                    <><span>›</span><button onClick={() => selectNode(rootEntityId)}>{rootNode.label}</button></>
-                  )}
-                  {focusTrail.filter((id) => id !== rootEntityId).map((id) => (
-                    <span key={id}>
-                      <i>›</i>
-                      <button onClick={() => selectNode(id)}>
-                        {graphNodes.find((n) => n.id === id)?.data.label ?? id}
-                      </button>
-                    </span>
-                  ))}
-                </nav>
-              )}
-            </div>
-          )}
           {!rootEntityId && !documentId && !loading && (
             <div className="canvas-hint">
               <Network size={16} />
@@ -799,22 +814,12 @@ export function NetworkPage() {
             </div>
           )}
 
-          <GraphLegend />
-
           {hoveredEdge?.edge.data && (
             <div className="edge-hover-preview" style={{ left: hoveredEdge.x + 12, top: hoveredEdge.y + 12 }}>
               <strong>{titleCase(hoveredEdge.edge.data.relation)}</strong>
               <span>{hoveredEdge.edge.data.evidence.length} source records · {hoveredEdge.edge.data.confidence}% confidence</span>
             </div>
           )}
-          <div className="graph-help">
-            <Info />
-            <span>
-              {documentId
-                ? "Inner ring = entities from this document · Outer rings = their connections. Select a node to view its full profile."
-                : "People use a blue circular marker. Select a node for its profile or a labeled line for the evidence behind that connection."}
-            </span>
-          </div>
           {!loading && (rootEntityId || documentId) && visibleEdges.length === 0 && (
             <div className="graph-no-links">
               <Network />

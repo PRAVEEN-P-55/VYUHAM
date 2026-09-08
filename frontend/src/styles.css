@@ -464,11 +464,17 @@ td strong { color: var(--color-text-primary); }
   min-height: 620px;
   overflow: hidden;
   border-radius: 0;
+  background: #fff;
+  isolation: isolate;
 }
 .react-flow__attribution { display: none; }
 .react-flow__controls { overflow: hidden; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
 .react-flow__controls-button { border-bottom-color: var(--color-border) !important; color: var(--color-text-secondary); }
 .react-flow__minimap { border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); box-shadow: none; }
+.graph-canvas .react-flow__edge-path { stroke-linecap: round; stroke-linejoin: round; transition: opacity 160ms ease, stroke-width 160ms ease; }
+.graph-canvas .react-flow__edge-text { paint-order: stroke; stroke: rgb(255 255 255 / .78); stroke-width: 2px; }
+.graph-canvas .react-flow__edge:hover .react-flow__edge-path { stroke-width: 3px; opacity: 1; }
+.graph-canvas .react-flow__node:focus-visible .investigation-node__orb { outline: 3px solid rgb(124 58 237 / .34); outline-offset: 4px; }
 
 /* In-canvas overlays — take ZERO vertical space outside the canvas */
 .canvas-focus-label {
@@ -541,14 +547,14 @@ td strong { color: var(--color-text-primary); }
   pointer-events: none;
 }
 
-.investigation-node { --node-color: var(--relation-other); position: relative; display: grid; width: 154px; min-height: 108px; justify-items: center; align-content: start; color: var(--color-text-primary); cursor: pointer; }
-.investigation-node__orb { display: grid; width: 58px; height: 58px; place-items: center; border: 3px solid color-mix(in srgb, var(--node-color) 22%, white); border-radius: 50%; background: color-mix(in srgb, var(--node-color) 12%, white); color: var(--node-color); box-shadow: 0 3px 10px color-mix(in srgb, var(--node-color) 16%, transparent); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
-.investigation-node__orb svg { width: 27px; height: 27px; stroke-width: 2.4; }
-.investigation-node__label { width: 154px; padding-top: 7px; text-align: center; }
+.investigation-node { --node-color: var(--relation-other); position: relative; display: grid; width: 132px; min-height: 92px; justify-items: center; align-content: start; color: var(--color-text-primary); cursor: pointer; }
+.investigation-node__orb { display: grid; width: 52px; height: 52px; place-items: center; border: 3px solid color-mix(in srgb, var(--node-color) 28%, white); border-radius: 50%; background: color-mix(in srgb, var(--node-color) 9%, white); color: var(--node-color); box-shadow: 0 0 0 5px color-mix(in srgb, var(--node-color) 7%, transparent), 0 5px 14px color-mix(in srgb, var(--node-color) 18%, transparent); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+.investigation-node__orb svg { width: 24px; height: 24px; stroke-width: 2.35; }
+.investigation-node__label { width: 132px; padding-top: 6px; text-align: center; text-shadow: 0 1px 0 white; }
 .investigation-node strong, .investigation-node small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.investigation-node strong { font-size: 11px; line-height: 1.25; }
-.investigation-node small { margin-top: 2px; color: var(--node-color); font-size: 7px; font-weight: 700; letter-spacing: .055em; text-transform: uppercase; }
-.investigation-node:hover .investigation-node__orb { transform: translateY(-2px) scale(1.04); border-color: color-mix(in srgb, var(--node-color) 42%, white); box-shadow: 0 6px 15px color-mix(in srgb, var(--node-color) 24%, transparent); }
+.investigation-node strong { font-size: 10px; line-height: 1.25; }
+.investigation-node small { margin-top: 2px; color: var(--node-color); font-size: 6.5px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.investigation-node:hover .investigation-node__orb { transform: translateY(-2px) scale(1.06); border-color: color-mix(in srgb, var(--node-color) 48%, white); box-shadow: 0 0 0 7px color-mix(in srgb, var(--node-color) 9%, transparent), 0 8px 18px color-mix(in srgb, var(--node-color) 24%, transparent); }
 .investigation-node--person { --node-color: var(--graph-person); }
 .investigation-node--phone { --node-color: var(--graph-phone); }
 .investigation-node--bank-account { --node-color: var(--graph-account); }
@@ -556,19 +562,26 @@ td strong { color: var(--color-text-primary); }
 .investigation-node--location { --node-color: var(--graph-location); }
 .investigation-node--vehicle { --node-color: var(--graph-vehicle); }
 .investigation-node--incident { --node-color: var(--graph-incident); }
-.investigation-node--important .investigation-node__orb { box-shadow: 0 0 0 4px var(--color-warning-soft), 0 4px 13px color-mix(in srgb, var(--node-color) 22%, transparent); }
-.investigation-node--selected .investigation-node__orb { outline: 4px solid rgb(37 99 235 / 0.23); outline-offset: 3px; }
+.investigation-node--important .investigation-node__orb { box-shadow: 0 0 0 5px rgb(250 204 21 / .16), 0 4px 14px color-mix(in srgb, var(--node-color) 22%, transparent); }
+.investigation-node--selected .investigation-node__orb { outline: 3px solid rgb(124 58 237 / 0.27); outline-offset: 4px; }
 .investigation-node--connected-person .investigation-node__orb { border-width: 4px; }
-.investigation-node--root { width: 184px; min-height: 142px; transform: translate(-15px, -17px); }
-.investigation-node--root .investigation-node__orb { width: 88px; height: 88px; border: 7px solid color-mix(in srgb, var(--node-color) 16%, white); background: var(--node-color); color: white; box-shadow: 0 0 0 6px color-mix(in srgb, var(--node-color) 10%, transparent), 0 9px 23px color-mix(in srgb, var(--node-color) 28%, transparent); }
-.investigation-node--root .investigation-node__orb svg { width: 42px; height: 42px; stroke-width: 2.5; }
-.investigation-node--root .investigation-node__label { width: 184px; padding-top: 9px; }
-.investigation-node--root strong { font-size: 14px; }
-.investigation-node--root small { margin-top: 3px; color: var(--node-color); font-size: 8px; }
+.investigation-node--root { width: 132px; min-height: 116px; z-index: 4; }
+.investigation-node--root .investigation-node__orb { width: 78px; height: 78px; border: 7px solid color-mix(in srgb, var(--node-color) 14%, white); background: var(--node-color); color: white; box-shadow: 0 0 0 6px color-mix(in srgb, var(--node-color) 10%, transparent), 0 9px 23px color-mix(in srgb, var(--node-color) 28%, transparent); }
+.investigation-node--root .investigation-node__orb svg { width: 38px; height: 38px; stroke-width: 2.35; }
+.investigation-node--root .investigation-node__label { width: 132px; padding-top: 7px; }
+.investigation-node--root strong { font-size: 12px; }
+.investigation-node--root small { margin-top: 2px; color: var(--node-color); font-size: 7px; }
 .react-flow__handle { width: 7px; height: 7px; min-width: 7px; min-height: 7px; border: 0; background: transparent; opacity: 0; }
-.investigation-node > .react-flow__handle-top { top: 0; }
-.investigation-node > .react-flow__handle-bottom { top: 56px; bottom: auto; }
-.investigation-node--root > .react-flow__handle-bottom { top: 84px; }
+.investigation-node > .react-flow__handle-top { top: 0; left: 50%; }
+.investigation-node > .react-flow__handle-right { top: 26px; right: calc(50% - 26px); }
+.investigation-node > .react-flow__handle-bottom { top: 52px; bottom: auto; left: 50%; }
+.investigation-node > .react-flow__handle-left { top: 26px; left: calc(50% - 26px); }
+.investigation-node--root > .react-flow__handle-right,
+.investigation-node--document > .react-flow__handle-right { top: 39px; right: calc(50% - 39px); }
+.investigation-node--root > .react-flow__handle-bottom,
+.investigation-node--document > .react-flow__handle-bottom { top: 78px; }
+.investigation-node--root > .react-flow__handle-left,
+.investigation-node--document > .react-flow__handle-left { top: 39px; left: calc(50% - 39px); }
 .graph-quick-actions { position: absolute; z-index: 6; top: 12px; left: 12px; display: flex; gap: 6px; }
 .graph-legend { position: absolute; z-index: 6; right: 14px; bottom: 14px; display: grid; gap: 7px; max-width: 560px; padding: 9px 11px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: rgb(255 255 255 / 0.96); color: var(--color-text-secondary); box-shadow: var(--shadow-sm); font-size: 9px; }
 .graph-legend > div { display: flex; flex-wrap: wrap; gap: 9px; }
@@ -1036,14 +1049,13 @@ table:has(th:nth-child(1):hover) td:nth-child(1), table:has(th:nth-child(2):hove
 /* Document-center node — glowing pulse at ring 0 */
 .investigation-node--document {
   --node-color: #7c3aed;
-  width: 192px;
-  min-height: 148px;
-  transform: translate(-16px, -18px);
+  width: 132px;
+  min-height: 116px;
   z-index: 10;
 }
 .investigation-node--document .investigation-node__orb {
-  width: 92px;
-  height: 92px;
+  width: 78px;
+  height: 78px;
   border: 7px solid color-mix(in srgb, #7c3aed 18%, white);
   background: #7c3aed;
   color: white;
@@ -1055,10 +1067,9 @@ table:has(th:nth-child(1):hover) td:nth-child(1), table:has(th:nth-child(2):hove
   0%, 100% { box-shadow: 0 0 0 8px color-mix(in srgb, #7c3aed 12%, transparent), 0 10px 28px color-mix(in srgb, #7c3aed 30%, transparent); }
   50%       { box-shadow: 0 0 0 16px color-mix(in srgb, #7c3aed 6%, transparent),  0 12px 34px color-mix(in srgb, #7c3aed 36%, transparent); }
 }
-.investigation-node--document .investigation-node__orb svg { width: 44px; height: 44px; }
-.investigation-node--document .investigation-node__label { width: 192px; padding-top: 10px; }
-.investigation-node--document strong { font-size: 13px; }
-.investigation-node--document > .react-flow__handle-bottom { top: 88px; }
+.investigation-node--document .investigation-node__orb svg { width: 38px; height: 38px; }
+.investigation-node--document .investigation-node__label { width: 132px; padding-top: 7px; }
+.investigation-node--document strong { font-size: 12px; }
 
 /* Seed nodes (ring 1 — directly from document) — bright blue ring */
 .investigation-node--seed .investigation-node__orb {

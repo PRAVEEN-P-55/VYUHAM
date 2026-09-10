@@ -46,6 +46,9 @@ class Settings(BaseSettings):
         "http://localhost:5174",
         "http://127.0.0.1:5174",
     ]
+    # Allow all origins when set to ["*"] -- used in cloud deployments where
+    # Vercel preview URLs are not known ahead of time.
+    cors_allow_all: bool = False
 
 
 @lru_cache
